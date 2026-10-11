@@ -1,4 +1,4 @@
-use anyhow::{self, Error, Ok};
+use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -16,6 +16,40 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     log::info!("Hello,final sample world!");
+
+    let peripherals = Peripherals::take().unwrap();
+
+    let sysloop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
+
+    let mut wifi = EspWifi::new(peripherals.modem, sysloop,Some(nvs))?;
+
+
+
+    wifi.start()?;
+
+    log::info!("wifi started and scanning");
+
+    match wifi.scan() {
+        Ok(networks)=>{
+            println!("Networks found:{:?}",networks);
+        },
+        Err(err)=>{
+            log::error!("Wifi scan failed:{:?}",err);
+        }
+    }
+
+
+    log::info!("scan complete");
+
+    // simple_connect_wifi()?;
+
+    Ok(())
+
+}
+
+
+fn simple_connect_wifi() -> anyhow::Result<()>{
 
     let peripherals = Peripherals::take().unwrap();
 
@@ -47,5 +81,5 @@ fn main() -> anyhow::Result<()> {
     println!("Wifi connected");
 
     Ok(())
-
 }
+

@@ -1,7 +1,10 @@
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
+use esp_idf_hal::gpio::{Gpio5, Output, PinDriver};
+use esp_idf_hal::modem::Modem;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::http::server::EspHttpServer;
@@ -17,13 +20,14 @@ fn main()  {
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
+    let peripherals = Peripherals::take().unwrap();
 
     log::info!("Hello,final sample world!");
+    let  led_pin = Arc::new(Mutex::new(PinDriver::output(peripherals.pins.gpio5).unwrap()));
 
 
-    let _wifi = simple_connect_wifi();
-    let _server = init_server();
-
+    let _wifi = simple_connect_wifi(peripherals.modem);
+    let _server = init_server(led_pin);
 
 
     loop {
@@ -35,26 +39,26 @@ fn main()  {
 
 }
 
-fn init_server() -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
+fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
 
     let mut server = EspHttpServer::new(&Default::default()).unwrap();
 
-    server.fn_handler("/", embedded_svc::http::Method::Get, |req| -> anyhow::Result<()> {
+    server.fn_handler("/", embedded_svc::http::Method::Get,move |req| -> anyhow::Result<()> {
     let mut response = req.into_ok_response()?;
         response.write("hello from esp32".as_bytes())?;
+        led_pin.lock().unwrap().toggle();
         Ok(())
     })?;
 
     Ok(server)
 }
 
-fn scan_wifi() -> anyhow::Result<(),anyhow::Error>{
-    let peripherals = Peripherals::take().unwrap();
+fn scan_wifi(modem:Modem<'static>) -> anyhow::Result<(),anyhow::Error>{
 
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    let mut wifi = EspWifi::new(peripherals.modem, sysloop,Some(nvs))?;
+    let mut wifi = EspWifi::new(modem, sysloop,Some(nvs))?;
     match wifi.scan() {
         Ok(networks)=>{
             println!("Networks found:{:?}",networks);
@@ -71,14 +75,13 @@ fn scan_wifi() -> anyhow::Result<(),anyhow::Error>{
 
 }
 
-fn simple_connect_wifi() -> anyhow::Result<EspWifi<'static>,anyhow::Error>{
+fn simple_connect_wifi(modem:Modem<'static>) -> anyhow::Result<EspWifi<'static>,anyhow::Error>{
 
-    let peripherals = Peripherals::take().unwrap();
 
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    let mut wifi = EspWifi::new(peripherals.modem, sysloop,Some(nvs))?;
+    let mut wifi = EspWifi::new(modem, sysloop,Some(nvs))?;
 
     let ssid:String<32> = String::try_from("Airtel_Airtelwifi").unwrap();
     let password:String<64> = String::try_from("Hrishik@12345").unwrap();

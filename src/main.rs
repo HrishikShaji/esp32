@@ -1,13 +1,15 @@
+use std::time::Duration;
+
 use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
-use esp_idf_svc::wifi::EspWifi;
+use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use heapless::String;
 
 
-fn main() -> anyhow::Result<()> {
+fn main()  {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
@@ -17,19 +19,26 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("Hello,final sample world!");
 
+
+    let _wifi = simple_connect_wifi();
+
+
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+    }
+
+
+    // Ok(())
+
+}
+
+fn scan_wifi() -> anyhow::Result<(),anyhow::Error>{
     let peripherals = Peripherals::take().unwrap();
 
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
     let mut wifi = EspWifi::new(peripherals.modem, sysloop,Some(nvs))?;
-
-
-
-    wifi.start()?;
-
-    log::info!("wifi started and scanning");
-
     match wifi.scan() {
         Ok(networks)=>{
             println!("Networks found:{:?}",networks);
@@ -42,14 +51,11 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("scan complete");
 
-    // simple_connect_wifi()?;
-
     Ok(())
 
 }
 
-
-fn simple_connect_wifi() -> anyhow::Result<()>{
+fn simple_connect_wifi() -> anyhow::Result<EspWifi<'static>,anyhow::Error>{
 
     let peripherals = Peripherals::take().unwrap();
 
@@ -80,6 +86,7 @@ fn simple_connect_wifi() -> anyhow::Result<()>{
 
     println!("Wifi connected");
 
-    Ok(())
+    Ok(wifi)
+
 }
 

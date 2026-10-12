@@ -4,6 +4,7 @@ use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::http::server::EspHttpServer;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use heapless::String;
@@ -21,6 +22,8 @@ fn main()  {
 
 
     let _wifi = simple_connect_wifi();
+    let _server = init_server();
+
 
 
     loop {
@@ -30,6 +33,19 @@ fn main()  {
 
     // Ok(())
 
+}
+
+fn init_server() -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
+
+    let mut server = EspHttpServer::new(&Default::default()).unwrap();
+
+    server.fn_handler("/", embedded_svc::http::Method::Get, |req| -> anyhow::Result<()> {
+    let mut response = req.into_ok_response()?;
+        response.write("hello from esp32".as_bytes())?;
+        Ok(())
+    })?;
+
+    Ok(server)
 }
 
 fn scan_wifi() -> anyhow::Result<(),anyhow::Error>{

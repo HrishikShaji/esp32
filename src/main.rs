@@ -1,3 +1,4 @@
+use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -5,8 +6,11 @@ use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::gpio::{Gpio5, Output, PinDriver};
 use esp_idf_hal::io::Read;
+use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver};
+use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::modem::Modem;
 use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::units::Hertz;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::http::server::EspHttpServer;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
@@ -26,9 +30,14 @@ fn main()  {
     log::info!("Hello,final sample world!");
     let  led_pin = Arc::new(Mutex::new(PinDriver::output(peripherals.pins.gpio5).unwrap()));
 
+    let servo_timer = peripherals.ledc.timer1;
+    let servo_driver = LedcTimerDriver::new(servo_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
+
+    let servo = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel3, servo_driver, peripherals.pins.gpio2).unwrap()));
+
 
     let _wifi = simple_connect_wifi(peripherals.modem);
-    let _server = init_server(led_pin);
+    let _server = init_server(led_pin,servo);
 
 
     loop {
@@ -44,11 +53,12 @@ fn delay(s:u64){
     std::thread::sleep(Duration::from_secs(s));
 }
 
-fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
+fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>,servo:Arc<Mutex<LedcDriver<'static>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
 
     let mut server = EspHttpServer::new(&Default::default()).unwrap();
 
     let led_pin_root = Arc::clone(&led_pin);
+
 
     server.fn_handler("/", embedded_svc::http::Method::Get,move |req| -> anyhow::Result<()> {
     let mut response = req.into_ok_response()?;
@@ -71,14 +81,39 @@ fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>) -> anyhow::Result<
 
         let mut response = req.into_ok_response()?;
         response.write("This is led route".as_bytes())?;
-        led_pin.lock().unwrap().set_high();
-        delay(1);
-        led_pin.lock().unwrap().set_low();
-        delay(1);
-        led_pin.lock().unwrap().set_high();
+        
+        for i in 0..number {
+            println!("Iteration:{}",i);
+            led_pin.lock().unwrap().set_high();
+            delay(1);
+            led_pin.lock().unwrap().set_low();
+            delay(1);
+        }
+
         Ok(())
     })?;
 
+    let max_duty = servo.lock().unwrap().get_max_duty();
+
+    let min = max_duty / 40;
+    let max = max_duty / 8;
+
+    fn interpolate(angle:u32,min:u32,max:u32)->u32{
+angle * (max - min)/180 + min
+    }
+
+    server.fn_handler("/servo", embedded_svc::http::Method::Post,move |mut req| -> anyhow::Result<()> {
+
+        let mut buffer = [0u8;6];
+
+        let bytes_read = req.read(&mut buffer).unwrap();
+        let angle_string = from_utf8(&buffer[0..bytes_read]).unwrap();
+
+        let angle:u32 = angle_string.parse().unwrap();
+
+        servo.lock().unwrap().set_duty(interpolate(angle,min,max)).unwrap();
+        Ok(())
+    })?;
     Ok(server)
 }
 

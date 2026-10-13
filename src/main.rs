@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::{self, Error};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::gpio::{Gpio5, Output, PinDriver};
+use esp_idf_hal::io::Read;
 use esp_idf_hal::modem::Modem;
 use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -39,14 +40,42 @@ fn main()  {
 
 }
 
+fn delay(s:u64){
+    std::thread::sleep(Duration::from_secs(s));
+}
+
 fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
 
     let mut server = EspHttpServer::new(&Default::default()).unwrap();
 
+    let led_pin_root = Arc::clone(&led_pin);
+
     server.fn_handler("/", embedded_svc::http::Method::Get,move |req| -> anyhow::Result<()> {
     let mut response = req.into_ok_response()?;
         response.write("hello from esp32".as_bytes())?;
-        led_pin.lock().unwrap().toggle();
+        led_pin_root.lock().unwrap().toggle();
+        Ok(())
+    })?;
+    
+    server.fn_handler("/led", embedded_svc::http::Method::Post,move |mut req| -> anyhow::Result<()> {
+
+        let mut buffer = [0u8;1024];
+
+        let len = req.read(&mut buffer)?;
+
+        let received = std::str::from_utf8(&buffer[..len])?.trim();
+
+        let number:u64 = received.parse()?;
+
+        println!("number:{:?}",number);
+
+        let mut response = req.into_ok_response()?;
+        response.write("This is led route".as_bytes())?;
+        led_pin.lock().unwrap().set_high();
+        delay(1);
+        led_pin.lock().unwrap().set_low();
+        delay(1);
+        led_pin.lock().unwrap().set_high();
         Ok(())
     })?;
 

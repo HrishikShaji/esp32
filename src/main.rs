@@ -93,27 +93,55 @@ fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>,servo:Arc<Mutex<Led
         Ok(())
     })?;
 
-    let max_duty = servo.lock().unwrap().get_max_duty();
 
-    let min = max_duty / 40;
-    let max = max_duty / 8;
 
     fn interpolate(angle:u32,min:u32,max:u32)->u32{
 angle * (max - min)/180 + min
     }
 
-    server.fn_handler("/servo", embedded_svc::http::Method::Post,move |mut req| -> anyhow::Result<()> {
+    fn rotate_servo(servo:Arc<Mutex<LedcDriver<'static>>>,angle:u32){
+    let max_duty = servo.lock().unwrap().get_max_duty();
 
-        let mut buffer = [0u8;6];
-
-        let bytes_read = req.read(&mut buffer).unwrap();
-        let angle_string = from_utf8(&buffer[0..bytes_read]).unwrap();
-
-        let angle:u32 = angle_string.parse().unwrap();
+    let min = max_duty / 40;
+    let max = max_duty / 8;
 
         servo.lock().unwrap().set_duty(interpolate(angle,min,max)).unwrap();
+    }
+
+
+let servo_for_single = Arc::clone(&servo);
+
+server.fn_handler(
+    "/servo",
+    embedded_svc::http::Method::Post,
+    move |mut req| -> anyhow::Result<()> {
+        let mut buffer = [0u8; 6];
+
+        let bytes_read = req.read(&mut buffer)?;
+        let angle_string = from_utf8(&buffer[..bytes_read])?;
+        let angle: u32 = angle_string.parse()?;
+
+        rotate_servo(Arc::clone(&servo_for_single), angle);
+
         Ok(())
-    })?;
+    },
+)?;
+
+let servo_for_loop = Arc::clone(&servo);
+
+server.fn_handler(
+    "/servo-loop",
+    embedded_svc::http::Method::Post,
+    move |mut req| -> anyhow::Result<()> {
+            for i in 0..6 {
+                rotate_servo(Arc::clone(&servo_for_loop), (i+1) * 30);
+                delay(1);
+            }
+
+        Ok(())
+    },
+)?;
+
     Ok(server)
 }
 

@@ -30,14 +30,18 @@ fn main()  {
     log::info!("Hello,final sample world!");
     let  led_pin = Arc::new(Mutex::new(PinDriver::output(peripherals.pins.gpio5).unwrap()));
 
-    let servo_timer = peripherals.ledc.timer1;
-    let servo_driver = LedcTimerDriver::new(servo_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
+    let servo1_timer = peripherals.ledc.timer1;
+    let servo1_driver = LedcTimerDriver::new(servo1_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
 
-    let servo = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel3, servo_driver, peripherals.pins.gpio2).unwrap()));
+    let servo1 = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel3, servo1_driver, peripherals.pins.gpio2).unwrap()));
 
+    let servo2_timer = peripherals.ledc.timer2;
+    let servo2_driver = LedcTimerDriver::new(servo2_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
+
+    let servo2 = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel4, servo2_driver, peripherals.pins.gpio18).unwrap()));
 
     let _wifi = simple_connect_wifi(peripherals.modem);
-    let _server = init_server(led_pin,servo);
+    let _server = init_server(led_pin,servo1,servo2);
 
 
     loop {
@@ -53,7 +57,7 @@ fn delay(s:u64){
     std::thread::sleep(Duration::from_secs(s));
 }
 
-fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>,servo:Arc<Mutex<LedcDriver<'static>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
+fn init_server(led_pin:Arc<Mutex<PinDriver<'static,Output>>>,servo1:Arc<Mutex<LedcDriver<'static>>>,servo2:Arc<Mutex<LedcDriver<'static>>>) -> anyhow::Result<EspHttpServer<'static>,anyhow::Error>{
 
     let mut server = EspHttpServer::new(&Default::default()).unwrap();
 
@@ -106,10 +110,13 @@ angle * (max - min)/180 + min
     let max = max_duty / 8;
 
         servo.lock().unwrap().set_duty(interpolate(angle,min,max)).unwrap();
+        // delay(1);
+        // servo.lock().unwrap().disable().unwrap();
+        // delay(1);
     }
 
 
-let servo_for_single = Arc::clone(&servo);
+let servo_for_single = Arc::clone(&servo1);
 
 server.fn_handler(
     "/servo",
@@ -127,7 +134,7 @@ server.fn_handler(
     },
 )?;
 
-let servo_for_loop = Arc::clone(&servo);
+let servo_for_loop = Arc::clone(&servo1);
 
 server.fn_handler(
     "/servo-loop",
@@ -142,6 +149,23 @@ server.fn_handler(
     },
 )?;
 
+let servo1_for_multi = Arc::clone(&servo1);
+let servo2_for_multi = Arc::clone(&servo2);
+
+server.fn_handler(
+    "/servo-multi",
+    embedded_svc::http::Method::Post,
+    move |mut req| -> anyhow::Result<()> {
+            for i in 0..6 {
+                rotate_servo(Arc::clone(&servo1_for_multi), (i+1) * 30);
+                delay(1);
+                rotate_servo(Arc::clone(&servo2_for_multi), (i+1) * 30);
+                delay(1);
+            }
+
+        Ok(())
+    },
+)?;
     Ok(server)
 }
 

@@ -166,6 +166,23 @@ server.fn_handler(
         Ok(())
     },
 )?;
+
+let servo1_for_reset = Arc::clone(&servo1);
+let servo2_for_reset = Arc::clone(&servo2);
+    server.fn_handler(
+    "/servo-reset",
+    embedded_svc::http::Method::Post,
+    move |mut req| -> anyhow::Result<()> {
+            for i in 0..6 {
+                rotate_servo(Arc::clone(&servo1_for_reset), 0);
+                delay(1);
+                rotate_servo(Arc::clone(&servo2_for_reset), 0);
+                delay(1);
+            }
+
+        Ok(())
+    },
+)?;
     Ok(server)
 }
 

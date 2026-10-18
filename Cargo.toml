@@ -26,6 +26,8 @@ anyhow = "1.0.104"
 esp-idf-hal = "0.47.0"
 embedded-svc = "0.29.0"
 heapless = "0.9.1"
+ssd1306 = "0.10"
+embedded-graphics = "0.8"
 
 [build-dependencies]
 embuild = "0.33.5"

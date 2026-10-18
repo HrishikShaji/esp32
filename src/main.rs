@@ -3,6 +3,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{self, Error};
+use embedded_graphics::geometry::Point;
+use embedded_graphics::mono_font::MonoTextStyle;
+use embedded_graphics::mono_font::ascii::FONT_6X10;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_graphics::text::Text;
+use embedded_graphics::{
+        prelude::{DrawTarget, Drawable}
+};
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::delay::BLOCK;
 use esp_idf_hal::gpio::{Gpio5, Gpio21, Gpio22, Output, PinDriver};
@@ -18,7 +26,13 @@ use esp_idf_svc::http::server::EspHttpServer;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use heapless::String;
-
+use ssd1306::rotation::DisplayRotation;
+use ssd1306::size::DisplaySize128x64;
+use ssd1306::{
+    prelude::*,
+    I2CDisplayInterface,
+    Ssd1306,
+};
 const OLED_ADDRESS: u8 = 0x3C;
 
 fn init_display(
@@ -78,6 +92,63 @@ fn init_display(
 
     Ok(i2c)
 }
+fn display_text(
+    sda: Gpio21<'static>,
+    scl: Gpio22<'static>,
+    i2c_driver: I2C0<'static>,
+) -> anyhow::Result<()> {
+    let config = I2cConfig::new()
+        .baudrate(Hertz(100_000));
+
+    let mut i2c = I2cDriver::new(
+        i2c_driver,
+        sda,
+        scl,
+        &config,
+    )?;
+
+    println!("Initializing OLED at 0x3C");
+
+    let interface = I2CDisplayInterface::new(i2c);
+
+    let mut display = Ssd1306::new(
+        interface,
+        DisplaySize128x64,
+        DisplayRotation::Rotate0,
+    )
+    .into_buffered_graphics_mode();
+
+    display.init().unwrap();
+
+    display.clear(BinaryColor::Off).unwrap();
+
+    let style = MonoTextStyle::new(
+        &FONT_6X10,
+        BinaryColor::On,
+    );
+
+    Text::new(
+        "Hello from Rust!",
+        Point::new(0, 16),
+        style,
+    )
+    .draw(&mut display)
+    .unwrap();
+
+    Text::new(
+        "ESP32 + OLED",
+        Point::new(0, 32),
+        style,
+    )
+    .draw(&mut display)
+    .unwrap();
+
+    display.flush().unwrap();
+
+    println!("OLED text displayed successfully");
+
+    Ok(())
+}
 
 fn main()  {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
@@ -94,7 +165,8 @@ let sda = peripherals.pins.gpio21;
 let i2c_driver = peripherals.i2c0;
 
 
-    let _display = init_display(sda, scl, i2c_driver);
+    // let _display = init_display(sda, scl, i2c_driver);
+    let _display = display_text(sda, scl, i2c_driver);
 
 
 

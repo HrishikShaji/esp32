@@ -28,6 +28,7 @@ embedded-svc = "0.29.0"
 heapless = "0.9.1"
 ssd1306 = "0.10"
 embedded-graphics = "0.8"
+embedded-hal = "1.0.0"
 
 [build-dependencies]
 embuild = "0.33.5"

@@ -11,9 +11,10 @@ use embedded_graphics::text::Text;
 use embedded_graphics::{
         prelude::{DrawTarget, Drawable}
 };
+use embedded_hal::digital::OutputPin;
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
-use esp_idf_hal::delay::BLOCK;
-use esp_idf_hal::gpio::{Gpio5, Gpio21, Gpio22, Output, PinDriver};
+use esp_idf_hal::delay::{BLOCK, FreeRtos};
+use esp_idf_hal::gpio::{Gpio5, Gpio21, Gpio22, Output,  PinDriver};
 use esp_idf_hal::i2c::{I2C0, I2cConfig, I2cDriver};
 use esp_idf_hal::io::Read;
 use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver};
@@ -128,7 +129,7 @@ fn display_text(
     );
 
     Text::new(
-        "Hello from Rust!",
+        "New code!",
         Point::new(0, 16),
         style,
     )
@@ -150,11 +151,69 @@ fn display_text(
     Ok(())
 }
 
+const NUM: usize = 4; // modules in the chain
+
+struct Max7219<DIN, CLK, CS> {
+    din: DIN,
+    clk: CLK,
+    cs: CS,
+}
+
+impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
+    fn shift_byte(&mut self, b: u8) {
+        for i in (0..8).rev() {
+            if (b >> i) & 1 == 1 { self.din.set_high().ok(); } else { self.din.set_low().ok(); }
+            self.clk.set_high().ok();
+            self.clk.set_low().ok();
+        }
+    }
+
+    // Write a register with a separate value for each module.
+    // The first frame sent travels to the farthest module, so send in reverse.
+    fn write_each(&mut self, reg: u8, data: [u8; NUM]) {
+        self.cs.set_low().ok();
+        for d in data.iter().rev() {
+            self.shift_byte(reg);
+            self.shift_byte(*d);
+        }
+        self.cs.set_high().ok();
+    }
+
+    fn write_all(&mut self, reg: u8, val: u8) {
+        self.write_each(reg, [val; NUM]);
+    }
+
+    fn init(&mut self) {
+        self.write_all(0x0F, 0x00); // display test off
+        self.write_all(0x09, 0x00); // no BCD decode
+        self.write_all(0x0B, 0x07); // scan all 8 rows
+        self.write_all(0x0A, 0x03); // brightness 0..15
+        self.write_all(0x0C, 0x01); // normal operation (wake up)
+        self.clear();
+    }
+
+    fn clear(&mut self) {
+        for row in 1..=8 {
+            self.write_all(row, 0x00);
+        }
+    }
+
+    // buf[module][row]
+    fn show(&mut self, buf: &[[u8; 8]; NUM]) {
+        for row in 0..8 {
+            let mut d = [0u8; NUM];
+            for m in 0..NUM {
+                d[m] = buf[m][row];
+            }
+            self.write_each(row as u8 + 1, d);
+        }
+    }
+}
 fn main()  {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_svc::sys::link_patches();
-    esp_idf_svc::sys::link_patches();
+    esp_idf_hal::sys::link_patches();
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -166,7 +225,7 @@ let i2c_driver = peripherals.i2c0;
 
 
     // let _display = init_display(sda, scl, i2c_driver);
-    let _display = display_text(sda, scl, i2c_driver);
+    // let _display = display_text(sda, scl, i2c_driver);
 
 
 
@@ -192,10 +251,29 @@ let i2c_driver = peripherals.i2c0;
     // let _wifi = simple_connect_wifi(peripherals.modem);
     // let _server = init_server(led_pin,servo1,servo2);
 
+let mut disp = Max7219 {
+        din: PinDriver::output(peripherals.pins.gpio23).unwrap(),
+        clk: PinDriver::output(peripherals.pins.gpio18).unwrap(),
+        cs: PinDriver::output(peripherals.pins.gpio5).unwrap(),
+    };
+    disp.init();
 
+    // Demo: a vertical bar sweeping across all 32 columns
+    let mut buf = [[0u8; 8]; NUM];
     loop {
-        std::thread::sleep(Duration::from_secs(1));
+        for col in 0..(NUM * 8) {
+            buf = [[0u8; 8]; NUM];
+            let (m, bit) = (col / 8, 7 - (col % 8));
+            for row in 0..8 {
+                buf[m][row] = 1 << bit;
+            }
+            disp.show(&buf);
+            FreeRtos::delay_ms(60);
+        }
     }
+    // loop {
+    //     std::thread::sleep(Duration::from_secs(1));
+    // }
 
 
     // Ok(())

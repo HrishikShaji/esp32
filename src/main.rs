@@ -27,6 +27,7 @@ use esp_idf_svc::http::server::EspHttpServer;
 use esp_idf_svc::nvs::EspDefaultNvsPartition;
 use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use heapless::String;
+use ssd1306::mode::BufferedGraphicsMode;
 use ssd1306::rotation::DisplayRotation;
 use ssd1306::size::DisplaySize128x64;
 use ssd1306::{
@@ -36,11 +37,13 @@ use ssd1306::{
 };
 const OLED_ADDRESS: u8 = 0x3C;
 
-fn init_display(
+
+
+fn initiate_display(
     sda: Gpio21<'static>,
     scl: Gpio22<'static>,
     i2c_driver: I2C0<'static>,
-) -> anyhow::Result<I2cDriver<'static>> {
+) -> Ssd1306<I2CInterface<I2cDriver<'static>>, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>> {
     let config = I2cConfig::new()
         .baudrate(Hertz(100_000));
 
@@ -49,64 +52,7 @@ fn init_display(
         sda,
         scl,
         &config,
-    )?;
-
-    println!("Initializing OLED at 0x3C");
-
-    let commands: &[&[u8]] = &[
-        &[0x00, 0xAE],       // Display off
-        &[0x00, 0xD5, 0x80], // Clock
-        &[0x00, 0xA8, 0x3F], // Multiplex ratio: 64 rows
-        &[0x00, 0xD3, 0x00], // Display offset
-        &[0x00, 0x40],       // Start line
-        &[0x00, 0x8D, 0x14], // Charge pump
-        &[0x00, 0xA1],       // Segment remap
-        &[0x00, 0xC8],       // COM scan direction
-        &[0x00, 0xDA, 0x12], // COM pins
-        &[0x00, 0x81, 0xCF], // Contrast
-        &[0x00, 0xD9, 0xF1], // Pre-charge
-        &[0x00, 0xDB, 0x40], // VCOMH
-        &[0x00, 0xA4],       // Display follows RAM
-        &[0x00, 0xA6],       // Normal display
-        &[0x00, 0x20, 0x00], // Horizontal addressing
-        &[0x00, 0xAF],       // Display on
-    ];
-
-    for command in commands {
-        i2c.write(OLED_ADDRESS, command, BLOCK)?;
-    }
-
-    // Fill 1024 bytes: 128 columns × 8 pages.
-    for _ in 0..64 {
-        let data = [
-            0x40,
-            0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0xFF,
-        ];
-
-        i2c.write(OLED_ADDRESS, &data, BLOCK)?;
-    }
-
-    println!("OLED initialized; display should be white.");
-
-    Ok(i2c)
-}
-fn display_text(
-    sda: Gpio21<'static>,
-    scl: Gpio22<'static>,
-    i2c_driver: I2C0<'static>,
-) -> anyhow::Result<()> {
-    let config = I2cConfig::new()
-        .baudrate(Hertz(100_000));
-
-    let mut i2c = I2cDriver::new(
-        i2c_driver,
-        sda,
-        scl,
-        &config,
-    )?;
+    ).unwrap();
 
     println!("Initializing OLED at 0x3C");
 
@@ -121,35 +67,33 @@ fn display_text(
 
     display.init().unwrap();
 
-    display.clear(BinaryColor::Off).unwrap();
 
+    display
+
+}
+
+fn render_text(display:&mut Ssd1306<I2CInterface<I2cDriver<'static>>, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>,text:&str){
+    display.clear(BinaryColor::Off).unwrap();
     let style = MonoTextStyle::new(
         &FONT_6X10,
         BinaryColor::On,
     );
 
     Text::new(
-        "New code!",
+        text,
         Point::new(0, 16),
         style,
     )
-    .draw(&mut display)
+    .draw(display)
     .unwrap();
 
-    Text::new(
-        "ESP32 + OLED",
-        Point::new(0, 32),
-        style,
-    )
-    .draw(&mut display)
-    .unwrap();
 
     display.flush().unwrap();
 
     println!("OLED text displayed successfully");
 
-    Ok(())
 }
+
 
 const NUM: usize = 4; // modules in the chain
 
@@ -229,6 +173,8 @@ let i2c_driver = peripherals.i2c0;
 
     // let _display = init_display(sda, scl, i2c_driver);
     // let _display = display_text(sda, scl, i2c_driver);
+    let mut display = initiate_display(sda, scl, i2c_driver);
+    // render_text(&mut display,"hello");
 
 
 
@@ -274,8 +220,11 @@ let mut buf = [[0u8; 8]; NUM];
 let mut col = 0;
 let mut last_step = Instant::now();
 const STEP: Duration = Duration::from_millis(60);
+let mut led_on = false;
+    let mut last_drawn: Option<bool> = None; // before the loop
 
-loop {
+
+    loop {
     // Animation: advance one column every 60 ms, without blocking
     if last_step.elapsed() >= STEP {
         last_step = Instant::now();
@@ -290,17 +239,22 @@ loop {
         col = (col + 1) % (NUM * 8);
     }
 
-    // Button: checked every ~1 ms
-    if button.is_low() {
-        if !button_pressed {
-            println!("button clicked");
-            button_pressed = true;
-            led.toggle().unwrap();
-        }
-    } else {
-        button_pressed = false;
-    }
 
+  let pressed = button.is_low();
+
+    // Act only on the press edge
+    if pressed && !button_pressed {
+        println!("button clicked");
+        led.toggle().unwrap();
+        led_on = !led_on;
+    }
+    button_pressed = pressed;
+
+    // Redraw only when the LED state changes
+    if last_drawn != Some(led_on) {
+        render_text(&mut display, if led_on { "on" } else { "off" });
+        last_drawn = Some(led_on);
+    }
     FreeRtos::delay_ms(1);
 }
     // loop {

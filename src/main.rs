@@ -1,6 +1,6 @@
 use std::str::from_utf8;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{self, Error};
 use embedded_graphics::geometry::Point;
@@ -257,9 +257,10 @@ let i2c_driver = peripherals.i2c0;
 
         let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
     let mut button = PinDriver::input(peripherals.pins.gpio4,Pull::Up).unwrap();
+    led.set_low().unwrap();
 
 
-    let mut last_pressed = false;
+    let mut button_pressed = false;
 
 let mut disp = Max7219 {
         din: PinDriver::output(peripherals.pins.gpio23).unwrap(),
@@ -269,31 +270,39 @@ let mut disp = Max7219 {
     disp.init();
 
     // Demo: a vertical bar sweeping across all 32 columns
-    let mut buf = [[0u8; 8]; NUM];
+let mut buf = [[0u8; 8]; NUM];
+let mut col = 0;
+let mut last_step = Instant::now();
+const STEP: Duration = Duration::from_millis(60);
 
+loop {
+    // Animation: advance one column every 60 ms, without blocking
+    if last_step.elapsed() >= STEP {
+        last_step = Instant::now();
 
-    loop {
-        for col in 0..(NUM * 8) {
-            buf = [[0u8; 8]; NUM];
-            let (m, bit) = (NUM - 1 - col / 8, 7 - (col % 8));
-            for row in 0..8 {
-                buf[m][row] = 1 << bit;
-            }
-            disp.show(&buf);
-            FreeRtos::delay_ms(60);
+        buf = [[0u8; 8]; NUM];
+        let (m, bit) = (NUM - 1 - col / 8, 7 - (col % 8));
+        for row in 0..8 {
+            buf[m][row] = 1 << bit;
         }
+        disp.show(&buf);
 
-          let pressed = button.is_low(); // pressed = pulled to GND
-
-        // Act only on the press edge (released -> pressed)
-        if pressed && !last_pressed {
-            led.toggle().unwrap();
-            FreeRtos::delay_ms(50); // debounce
-        }
-
-        last_pressed = pressed;
-        FreeRtos::delay_ms(10);
+        col = (col + 1) % (NUM * 8);
     }
+
+    // Button: checked every ~1 ms
+    if button.is_low() {
+        if !button_pressed {
+            println!("button clicked");
+            button_pressed = true;
+            led.toggle().unwrap();
+        }
+    } else {
+        button_pressed = false;
+    }
+
+    FreeRtos::delay_ms(1);
+}
     // loop {
     //     std::thread::sleep(Duration::from_secs(1));
     // }

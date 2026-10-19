@@ -14,7 +14,7 @@ use embedded_graphics::{
 use embedded_hal::digital::OutputPin;
 use embedded_svc::wifi::{AuthMethod,ClientConfiguration,Configuration};
 use esp_idf_hal::delay::{BLOCK, FreeRtos};
-use esp_idf_hal::gpio::{Gpio5, Gpio21, Gpio22, Output,  PinDriver};
+use esp_idf_hal::gpio::{Gpio5, Gpio21, Gpio22, Output, PinDriver, Pull};
 use esp_idf_hal::i2c::{I2C0, I2cConfig, I2cDriver};
 use esp_idf_hal::io::Read;
 use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver};
@@ -209,6 +209,9 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         }
     }
 }
+
+
+
 fn main()  {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -251,6 +254,13 @@ let i2c_driver = peripherals.i2c0;
     // let _wifi = simple_connect_wifi(peripherals.modem);
     // let _server = init_server(led_pin,servo1,servo2);
 
+
+        let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
+    let mut button = PinDriver::input(peripherals.pins.gpio4,Pull::Up).unwrap();
+
+
+    let mut last_pressed = false;
+
 let mut disp = Max7219 {
         din: PinDriver::output(peripherals.pins.gpio23).unwrap(),
         clk: PinDriver::output(peripherals.pins.gpio18).unwrap(),
@@ -260,16 +270,29 @@ let mut disp = Max7219 {
 
     // Demo: a vertical bar sweeping across all 32 columns
     let mut buf = [[0u8; 8]; NUM];
+
+
     loop {
         for col in 0..(NUM * 8) {
             buf = [[0u8; 8]; NUM];
-            let (m, bit) = (col / 8, 7 - (col % 8));
+            let (m, bit) = (NUM - 1 - col / 8, 7 - (col % 8));
             for row in 0..8 {
                 buf[m][row] = 1 << bit;
             }
             disp.show(&buf);
             FreeRtos::delay_ms(60);
         }
+
+          let pressed = button.is_low(); // pressed = pulled to GND
+
+        // Act only on the press edge (released -> pressed)
+        if pressed && !last_pressed {
+            led.toggle().unwrap();
+            FreeRtos::delay_ms(50); // debounce
+        }
+
+        last_pressed = pressed;
+        FreeRtos::delay_ms(10);
     }
     // loop {
     //     std::thread::sleep(Duration::from_secs(1));

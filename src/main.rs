@@ -170,7 +170,10 @@ let sda = peripherals.pins.gpio21;
     let scl = peripherals.pins.gpio22;
 let i2c_driver = peripherals.i2c0;
 
-
+    let joystick_button = PinDriver::input(
+        peripherals.pins.gpio19,
+        Pull::Up,
+    ).unwrap();
     // let _display = init_display(sda, scl, i2c_driver);
     // let _display = display_text(sda, scl, i2c_driver);
     let mut display = initiate_display(sda, scl, i2c_driver);
@@ -239,7 +242,11 @@ let mut led_on = false;
         col = (col + 1) % (NUM * 8);
     }
 
-
+  if joystick_button.is_low() {
+            println!("Joystick button pressed!");
+        } else {
+            println!("Joystick button released");
+        }
   let pressed = button.is_low();
 
     // Act only on the press edge

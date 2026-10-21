@@ -11,7 +11,11 @@ pub struct Max7219<DIN, CLK, CS> {
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     fn shift_byte(&mut self, b: u8) {
         for i in (0..8).rev() {
-            if (b >> i) & 1 == 1 { self.din.set_high().ok(); } else { self.din.set_low().ok(); }
+            if (b >> i) & 1 == 1 {
+                self.din.set_high().ok();
+            } else {
+                self.din.set_low().ok();
+            }
             self.clk.set_high().ok();
             self.clk.set_low().ok();
         }
@@ -32,7 +36,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.write_each(reg, [val; NUM]);
     }
 
-   pub fn init(&mut self) {
+    pub fn init(&mut self) {
         self.write_all(0x0F, 0x00); // display test off
         self.write_all(0x09, 0x00); // no BCD decode
         self.write_all(0x0B, 0x07); // scan all 8 rows
@@ -48,7 +52,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     }
 
     // buf[module][row]
-  pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {
+    pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {
         for row in 0..8 {
             let mut d = [0u8; NUM];
             for m in 0..NUM {
@@ -58,4 +62,3 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         }
     }
 }
-

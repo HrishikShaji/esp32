@@ -102,6 +102,8 @@ fn main() {
         buf[*col][row] = 1 << bit;
         disp.show(&buf);
     }
+
+    let mut current_row = 0;
     loop {
         // Animation: advance one column every 60 ms, without blocking
         // if last_step.elapsed() >= STEP {
@@ -143,6 +145,11 @@ fn main() {
         if pressed && !button_pressed {
             println!("button clicked");
             // update_col(&mut col,row,&mut buf,&mut disp);
+            current_row = current_row + 1;
+            disp.move_left(current_row);
+            // disp.move_left(3);
+            // disp.move_left(4);
+            // disp.move_left(5);
             led.toggle().unwrap();
             led_on = !led_on;
         }

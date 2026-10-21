@@ -51,6 +51,26 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         }
     }
 
+    pub fn show_one(&mut self, row: u8, bit: u8) {
+        self.cs.set_low().ok();
+
+        // Send the command for the farthest module first
+        for _ in 0..3 {
+            self.shift_byte(1);
+            self.shift_byte(0b00000000);
+        }
+
+        // Send the command for the nearest module last
+        self.shift_byte(row);
+        self.shift_byte(bit);
+
+        self.cs.set_high().ok();
+    }
+
+    pub fn move_left(&mut self, row: u8) {
+        self.show_one(row, 0b00000001);
+    }
+
     // buf[module][row]
     pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {
         for row in 0..8 {

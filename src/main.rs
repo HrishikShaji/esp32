@@ -5,9 +5,16 @@ mod servers;
 use crate::components::led_matrix::{Max7219, NUM};
 use crate::components::oled::{initiate_display, render_text};
 use esp_idf_hal::delay::FreeRtos;
-use esp_idf_hal::gpio::{Output, PinDriver, Pull};
+use esp_idf_hal::gpio::{Input, Output, PinDriver, Pull};
 use esp_idf_hal::peripherals::Peripherals;
 use std::time::{Duration, Instant};
+
+enum ButtonID {
+    Up,
+    Down,
+    Left,
+    Right,
+}
 
 fn main() {
     // It is necessary to call this function once. Otherwise, some patches to the runtime
@@ -49,10 +56,54 @@ fn main() {
     // let _server = init_server(led_pin,servo1,servo2);
 
     let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
-    let mut button = PinDriver::input(peripherals.pins.gpio4, Pull::Up).unwrap();
+
+    let button_up = PinDriver::input(peripherals.pins.gpio4, Pull::Up).unwrap();
+    let mut button_up_pressed = false;
+
+    fn move_up() {
+        println!("UP button clicked");
+    }
+
+    let button_left = PinDriver::input(peripherals.pins.gpio15, Pull::Up).unwrap();
+    let mut button_left_pressed = false;
+
+    fn move_left() {
+        println!("LEFT button clicked");
+    }
+
+    let button_right = PinDriver::input(peripherals.pins.gpio16, Pull::Up).unwrap();
+    let mut button_right_pressed = false;
+
+    fn move_right() {
+        println!("RIGHT button clicked");
+    }
+
+    fn move_down() {
+        println!("DOWN button clicked");
+    }
+
+    fn on_button_click(
+        button_pin: &PinDriver<'static, Input>,
+        mut button_pressed: bool,
+        button_id: ButtonID,
+    ) {
+        let pressed = button_pin.is_low();
+
+        // Act only on the press edge
+        if pressed && !button_pressed {
+            match button_id {
+                ButtonID::Up => move_up(),
+                ButtonID::Down => move_down(),
+                ButtonID::Left => move_left(),
+                ButtonID::Right => move_right(),
+            }
+            println!("button clicked");
+        }
+        button_pressed = pressed;
+    }
+
     led.set_low().unwrap();
 
-    let mut button_pressed = false;
     let mut joystick_button_pressed = false;
 
     let mut disp = Max7219 {
@@ -70,38 +121,6 @@ fn main() {
     const STEP: Duration = Duration::from_millis(60);
     let mut led_on = false;
     let mut last_drawn: Option<bool> = None; // before the loop
-
-    fn update_row(
-        row: &mut usize,
-        col: usize,
-        buf: &mut [[u8; 8]; NUM],
-        disp: &mut Max7219<
-            PinDriver<'static, Output>,
-            PinDriver<'static, Output>,
-            PinDriver<'static, Output>,
-        >,
-    ) {
-        *row = *row + 1;
-        let bit = 0;
-        buf[col][*row] = 1 << bit;
-        disp.show(&buf);
-    }
-
-    fn update_col(
-        col: &mut usize,
-        row: usize,
-        buf: &mut [[u8; 8]; NUM],
-        disp: &mut Max7219<
-            PinDriver<'static, Output>,
-            PinDriver<'static, Output>,
-            PinDriver<'static, Output>,
-        >,
-    ) {
-        *col = *col + 1;
-        let bit = 0;
-        buf[*col][row] = 1 << bit;
-        disp.show(&buf);
-    }
 
     let mut current_row = 0;
     let mut current_bit = 0;
@@ -143,21 +162,25 @@ fn main() {
         }
         joystick_button_pressed = joystick_pressed;
 
-        let pressed = button.is_low();
+        on_button_click(&button_up, button_up_pressed, ButtonID::Up);
+        on_button_click(&button_left, button_left_pressed, ButtonID::Left);
+        on_button_click(&button_right, button_right_pressed, ButtonID::Right);
+
+        // let pressed = button_up.is_low();
 
         // Act only on the press edge
-        if pressed && !button_pressed {
-            println!("button clicked");
-            // update_col(&mut col,row,&mut buf,&mut disp);
-            current_row = current_row + 1;
-            disp.move_left(current_row);
-            // disp.move_left(3);
-            // disp.move_left(4);
-            // disp.move_left(5);
-            led.toggle().unwrap();
-            led_on = !led_on;
-        }
-        button_pressed = pressed;
+        // if pressed && !button_up_pressed {
+        //     println!("button clicked");
+        //     // update_col(&mut col,row,&mut buf,&mut disp);
+        //     current_row = current_row + 1;
+        //     disp.move_left(current_row);
+        //     // disp.move_left(3);
+        //     // disp.move_left(4);
+        //     // disp.move_left(5);
+        //     led.toggle().unwrap();
+        //     led_on = !led_on;
+        // }
+        // button_up_pressed = pressed;
 
         // Redraw only when the LED state changes
         if last_drawn != Some(led_on) {

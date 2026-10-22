@@ -55,63 +55,60 @@ fn main() {
     // let _wifi = simple_connect_wifi(peripherals.modem);
     // let _server = init_server(led_pin,servo1,servo2);
 
-    let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
-
-    let button_up = PinDriver::input(peripherals.pins.gpio4, Pull::Up).unwrap();
-    let mut button_up_pressed = false;
-
-    fn move_up() {
-        println!("UP button clicked");
-    }
-
-    let button_left = PinDriver::input(peripherals.pins.gpio15, Pull::Up).unwrap();
-    let mut button_left_pressed = false;
-
-    fn move_left() {
-        println!("LEFT button clicked");
-    }
-
-    let button_right = PinDriver::input(peripherals.pins.gpio16, Pull::Up).unwrap();
-    let mut button_right_pressed = false;
-
-    fn move_right() {
-        println!("RIGHT button clicked");
-    }
-
-    fn move_down() {
-        println!("DOWN button clicked");
-    }
-
-    fn on_button_click(
-        button_pin: &PinDriver<'static, Input>,
-        mut button_pressed: bool,
-        button_id: ButtonID,
-    ) {
-        let pressed = button_pin.is_low();
-
-        // Act only on the press edge
-        if pressed && !button_pressed {
-            match button_id {
-                ButtonID::Up => move_up(),
-                ButtonID::Down => move_down(),
-                ButtonID::Left => move_left(),
-                ButtonID::Right => move_right(),
-            }
-            println!("button clicked");
-        }
-        button_pressed = pressed;
-    }
-
-    led.set_low().unwrap();
-
-    let mut joystick_button_pressed = false;
-
     let mut disp = Max7219 {
         din: PinDriver::output(peripherals.pins.gpio23).unwrap(),
         clk: PinDriver::output(peripherals.pins.gpio18).unwrap(),
         cs: PinDriver::output(peripherals.pins.gpio5).unwrap(),
     };
     disp.init();
+
+    let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
+
+    let button_up = PinDriver::input(peripherals.pins.gpio4, Pull::Up).unwrap();
+    let mut button_up_pressed = false;
+
+    let button_left = PinDriver::input(peripherals.pins.gpio15, Pull::Up).unwrap();
+    let mut button_left_pressed = false;
+
+    let button_right = PinDriver::input(peripherals.pins.gpio16, Pull::Up).unwrap();
+    let mut button_right_pressed = false;
+
+    fn on_button_click(
+        button_pin: &PinDriver<'static, Input>,
+        button_pressed: &mut bool,
+        mut action: impl FnMut(),
+    ) {
+        let pressed = button_pin.is_low();
+
+        // if pressed != *button_pressed {
+        //     println!(
+        //         "{:?}: {}",
+        //         match button_id {
+        //             ButtonID::Up => "UP",
+        //             ButtonID::Down => "DOWN",
+        //             ButtonID::Left => "LEFT",
+        //             ButtonID::Right => "RIGHT",
+        //         },
+        //         if pressed { "PRESSED" } else { "RELEASED" }
+        //     );
+        // }
+
+        if pressed && !*button_pressed {
+            action();
+            // match button_id {
+            //     ButtonID::Up => move_up(),
+            //     ButtonID::Down => move_down(),
+            //     ButtonID::Left => move_left(),
+            //     ButtonID::Right => move_right(),
+            // }
+        }
+
+        *button_pressed = pressed;
+    }
+
+    led.set_low().unwrap();
+
+    let mut joystick_button_pressed = false;
 
     // Demo: a vertical bar sweeping across all 32 columns
     let mut buf = [[0u8; 8]; NUM];
@@ -155,16 +152,18 @@ fn main() {
 
             current_bit = current_bit + 1;
             let bit_mask = 1u8 << current_bit;
-            disp.move_up(bit_mask);
+            disp.move_down();
             // update_row(&mut row, col, &mut buf, &mut disp);
             // led.toggle().unwrap();
             // led_on = !led_on;
         }
         joystick_button_pressed = joystick_pressed;
 
-        on_button_click(&button_up, button_up_pressed, ButtonID::Up);
-        on_button_click(&button_left, button_left_pressed, ButtonID::Left);
-        on_button_click(&button_right, button_right_pressed, ButtonID::Right);
+        on_button_click(&button_up, &mut button_up_pressed, || disp.move_up());
+        on_button_click(&button_left, &mut button_left_pressed, || disp.move_left());
+        on_button_click(&button_right, &mut button_right_pressed, || {
+            disp.move_right()
+        });
 
         // let pressed = button_up.is_low();
 
@@ -184,7 +183,7 @@ fn main() {
 
         // Redraw only when the LED state changes
         if last_drawn != Some(led_on) {
-            render_text(&mut display, if led_on { "on" } else { "off" });
+            render_text(&mut display, if button_up_pressed { "on" } else { "off" });
             last_drawn = Some(led_on);
         }
         FreeRtos::delay_ms(1);

@@ -67,14 +67,28 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.cs.set_high().ok();
     }
 
-    pub fn move_left(&mut self, row: u8) {
-        self.show_one(row, 0b00000001);
+    pub fn lit_row(mut self) {
+        for row in 0..8 {
+            self.show_one(row, 0b00000001);
+        }
     }
 
-    pub fn move_up(&mut self, bit: u8) {
-        self.show_one(1, bit);
+    pub fn move_up(&mut self) {
+        println!("UP button clicked");
+        self.show_one(1, 0b00000010);
     }
-
+    pub fn move_left(&mut self) {
+        println!("LEFT button clicked");
+        self.show_one(1, 0b00000001);
+    }
+    pub fn move_right(&mut self) {
+        println!("RIGHT button clicked");
+        self.show_one(2, 0b00000001);
+    }
+    pub fn move_down(&mut self) {
+        println!("DOWN button clicked");
+        self.show_one(2, 0b00000100);
+    }
     // buf[module][row]
     pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {
         for row in 0..8 {

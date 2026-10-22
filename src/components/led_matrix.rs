@@ -7,6 +7,7 @@ pub struct Max7219<DIN, CLK, CS> {
     pub clk: CLK,
     pub cs: CS,
     row: u8,
+    col: u8,
 }
 
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
@@ -16,6 +17,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             clk,
             cs,
             row: 0,
+            col: 0,
         }
     }
 
@@ -102,16 +104,30 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             self.row = self.row - 1;
             self.show_one(self.row, 0b00000001);
         } else {
-            println!("O index");
+            println!("0 index");
         }
     }
     pub fn move_left(&mut self) {
         println!("LEFT button clicked");
-        self.show_one(1, 0b00000001);
+        if self.col > 0 {
+            self.col = self.col - 1;
+            let bit = 1u8 << self.col;
+            self.show_one(1, bit);
+        } else {
+            println!("0 index");
+        }
     }
     pub fn move_right(&mut self) {
         println!("RIGHT button clicked");
-        self.show_one(1, 0b00000010);
+
+        if self.col < 7 {
+            self.col = self.col + 1;
+            let bit = 1u8 << self.col;
+            println!("bit is {}", bit);
+            self.show_one(1, bit);
+        } else {
+            println!("Col exceeded");
+        }
     }
     // buf[module][row]
     pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {

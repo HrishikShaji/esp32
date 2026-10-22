@@ -71,6 +71,10 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.show_one(row, 0b00000001);
     }
 
+    pub fn move_up(&mut self, bit: u8) {
+        self.show_one(1, bit);
+    }
+
     // buf[module][row]
     pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {
         for row in 0..8 {

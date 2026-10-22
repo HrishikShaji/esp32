@@ -104,6 +104,7 @@ fn main() {
     }
 
     let mut current_row = 0;
+    let mut current_bit = 0;
     loop {
         // Animation: advance one column every 60 ms, without blocking
         // if last_step.elapsed() >= STEP {
@@ -133,7 +134,10 @@ fn main() {
         if joystick_pressed && !joystick_button_pressed {
             println!("joystick clicked");
 
-            update_row(&mut row, col, &mut buf, &mut disp);
+            current_bit = current_bit + 1;
+            let bit_mask = 1u8 << current_bit;
+            disp.move_up(bit_mask);
+            // update_row(&mut row, col, &mut buf, &mut disp);
             // led.toggle().unwrap();
             // led_on = !led_on;
         }

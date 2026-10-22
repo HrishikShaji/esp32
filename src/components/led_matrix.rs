@@ -16,7 +16,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             din,
             clk,
             cs,
-            row: 0,
+            row: 1,
             col: 0,
         }
     }
@@ -55,6 +55,8 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.write_all(0x0A, 0x03); // brightness 0..15
         self.write_all(0x0C, 0x01); // normal operation (wake up)
         self.clear();
+        let bit = 1u8 << self.col;
+        self.show_one(self.row, bit);
     }
 
     fn clear(&mut self) {
@@ -90,8 +92,9 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         if self.row < 8 {
             self.show_one(self.row, 0b00000000);
             self.row = self.row + 1;
+            let bit = 1u8 << self.col;
             println!("Row number {}", self.row);
-            self.show_one(self.row, 0b00000001);
+            self.show_one(self.row, bit);
         } else {
             println!("Row exceeded");
         }
@@ -102,7 +105,8 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         if self.row > 1 {
             self.show_one(self.row, 0b00000000);
             self.row = self.row - 1;
-            self.show_one(self.row, 0b00000001);
+            let bit = 1u8 << self.col;
+            self.show_one(self.row, bit);
         } else {
             println!("0 index");
         }
@@ -112,7 +116,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         if self.col > 0 {
             self.col = self.col - 1;
             let bit = 1u8 << self.col;
-            self.show_one(1, bit);
+            self.show_one(self.row, bit);
         } else {
             println!("0 index");
         }
@@ -124,7 +128,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             self.col = self.col + 1;
             let bit = 1u8 << self.col;
             println!("bit is {}", bit);
-            self.show_one(1, bit);
+            self.show_one(self.row, bit);
         } else {
             println!("Col exceeded");
         }

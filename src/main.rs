@@ -55,11 +55,11 @@ fn main() {
     // let _wifi = simple_connect_wifi(peripherals.modem);
     // let _server = init_server(led_pin,servo1,servo2);
 
-    let mut disp = Max7219 {
-        din: PinDriver::output(peripherals.pins.gpio23).unwrap(),
-        clk: PinDriver::output(peripherals.pins.gpio18).unwrap(),
-        cs: PinDriver::output(peripherals.pins.gpio5).unwrap(),
-    };
+    let din = PinDriver::output(peripherals.pins.gpio23).unwrap();
+    let clk = PinDriver::output(peripherals.pins.gpio18).unwrap();
+    let cs = PinDriver::output(peripherals.pins.gpio5).unwrap();
+
+    let mut disp = Max7219::new(din, clk, cs);
     disp.init();
 
     let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
@@ -150,8 +150,8 @@ fn main() {
         if joystick_pressed && !joystick_button_pressed {
             println!("joystick clicked");
 
-            current_bit = current_bit + 1;
-            let bit_mask = 1u8 << current_bit;
+            // current_bit = current_bit + 1;
+            // let bit_mask = 1u8 << current_bit;
             disp.move_down();
             // update_row(&mut row, col, &mut buf, &mut disp);
             // led.toggle().unwrap();

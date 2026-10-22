@@ -6,9 +6,19 @@ pub struct Max7219<DIN, CLK, CS> {
     pub din: DIN,
     pub clk: CLK,
     pub cs: CS,
+    row: u8,
 }
 
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
+    pub fn new(din: DIN, clk: CLK, cs: CS) -> Self {
+        Self {
+            din,
+            clk,
+            cs,
+            row: 0,
+        }
+    }
+
     fn shift_byte(&mut self, b: u8) {
         for i in (0..8).rev() {
             if (b >> i) & 1 == 1 {
@@ -75,7 +85,25 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
 
     pub fn move_up(&mut self) {
         println!("UP button clicked");
-        self.show_one(1, 0b00000010);
+        if self.row < 8 {
+            self.show_one(self.row, 0b00000000);
+            self.row = self.row + 1;
+            println!("Row number {}", self.row);
+            self.show_one(self.row, 0b00000001);
+        } else {
+            println!("Row exceeded");
+        }
+    }
+    pub fn move_down(&mut self) {
+        println!("DOWN button clicked");
+
+        if self.row > 1 {
+            self.show_one(self.row, 0b00000000);
+            self.row = self.row - 1;
+            self.show_one(self.row, 0b00000001);
+        } else {
+            println!("O index");
+        }
     }
     pub fn move_left(&mut self) {
         println!("LEFT button clicked");
@@ -83,11 +111,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     }
     pub fn move_right(&mut self) {
         println!("RIGHT button clicked");
-        self.show_one(2, 0b00000001);
-    }
-    pub fn move_down(&mut self) {
-        println!("DOWN button clicked");
-        self.show_one(2, 0b00000100);
+        self.show_one(1, 0b00000010);
     }
     // buf[module][row]
     pub fn show(&mut self, buf: &[[u8; 8]; NUM]) {

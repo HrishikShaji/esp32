@@ -69,14 +69,17 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.cs.set_low().ok();
 
         // Send the command for the farthest module first
-        for _ in 0..3 {
-            self.shift_byte(1);
-            self.shift_byte(0b00000000);
-        }
+        // for _ in 0..3 {
+        //     self.shift_byte(1);
+        //     self.shift_byte(0b00000000);
+        // }
 
         // Send the command for the nearest module last
-        self.shift_byte(row);
-        self.shift_byte(bit);
+
+        for _ in 0..4 {
+            self.shift_byte(row);
+            self.shift_byte(bit);
+        }
 
         self.cs.set_high().ok();
     }

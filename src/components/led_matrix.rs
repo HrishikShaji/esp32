@@ -8,6 +8,7 @@ pub struct Max7219<DIN, CLK, CS> {
     pub cs: CS,
     row: u8,
     col: u8,
+    current_module: u8,
 }
 
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
@@ -18,6 +19,7 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             cs,
             row: 1,
             col: 0,
+            current_module: 3,
         }
     }
 
@@ -76,9 +78,13 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
 
         // Send the command for the nearest module last
 
-        for _ in 0..4 {
+        for i in 0..4 {
             self.shift_byte(row);
-            self.shift_byte(bit);
+            if i == self.current_module {
+                self.shift_byte(bit);
+            } else {
+                self.shift_byte(0u8);
+            }
         }
 
         self.cs.set_high().ok();
@@ -121,7 +127,15 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             let bit = 1u8 << self.col;
             self.show_one(self.row, bit);
         } else {
-            println!("0 index");
+            if self.current_module == 3 {
+                println!("0 index");
+            } else {
+                self.current_module = self.current_module + 1;
+                self.col = 7;
+                let bit = 1u8 << self.col;
+                println!("bit is {}", bit);
+                self.show_one(self.row, bit);
+            }
         }
     }
     pub fn move_right(&mut self) {
@@ -133,7 +147,15 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             println!("bit is {}", bit);
             self.show_one(self.row, bit);
         } else {
-            println!("Col exceeded");
+            if self.current_module == 0 {
+                println!("Col exceeded");
+            } else {
+                self.current_module = self.current_module - 1;
+                self.col = 0;
+                let bit = 1u8 << self.col;
+                println!("bit is {}", bit);
+                self.show_one(self.row, bit);
+            }
         }
     }
     // buf[module][row]

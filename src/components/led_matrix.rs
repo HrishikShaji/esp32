@@ -26,9 +26,9 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
                 [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
                 [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
                 [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
             ],
-            current_dot: (0, 1),
+            current_dot: (3, 0),
         }
     }
 
@@ -63,11 +63,12 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     pub fn update_buf_move_up(&mut self) {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
+        let bit = self.buf[module as usize][row as usize];
 
         self.buf[module as usize][row as usize] = 0u8;
 
         self.current_dot.1 = self.current_dot.1 + 1;
-        self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
+        self.buf[module as usize][self.current_dot.1 as usize] = bit;
 
         self.show_buf();
     }
@@ -75,11 +76,40 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     pub fn update_buf_move_down(&mut self) {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
+        let bit = self.buf[module as usize][row as usize];
 
         self.buf[module as usize][row as usize] = 0u8;
 
         self.current_dot.1 = self.current_dot.1 - 1;
-        self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
+        self.buf[module as usize][self.current_dot.1 as usize] = bit;
+
+        self.show_buf();
+    }
+
+    pub fn update_buf_move_right(&mut self) {
+        let module = self.current_dot.0;
+        let row = self.current_dot.1;
+
+        let new_bit = self.buf[module as usize][row as usize] << 1;
+        self.current_dot.1 = new_bit;
+        self.buf[module as usize][row as usize] = new_bit;
+
+        // self.current_dot.1 = self.current_dot.1 - 1;
+        // self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
+
+        self.show_buf();
+    }
+
+    pub fn update_buf_move_left(&mut self) {
+        let module = self.current_dot.0;
+        let row = self.current_dot.1;
+
+        let new_bit = self.buf[module as usize][row as usize] >> 1;
+        self.current_dot.1 = new_bit;
+        self.buf[module as usize][row as usize] = new_bit;
+
+        // self.current_dot.1 = self.current_dot.1 - 1;
+        // self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
 
         self.show_buf();
     }

@@ -166,7 +166,7 @@ fn main() {
         });
         on_button_click(&button_left, &mut button_left_pressed, || disp.move_left());
         on_button_click(&button_right, &mut button_right_pressed, || {
-            disp.move_right()
+            disp.update_buf_move_right()
         });
 
         // let pressed = button_up.is_low();

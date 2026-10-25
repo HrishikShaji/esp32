@@ -152,7 +152,9 @@ fn main() {
 
             // current_bit = current_bit + 1;
             // let bit_mask = 1u8 << current_bit;
-            disp.move_down();
+            // disp.move_down();
+            disp.show_buf();
+
             // update_row(&mut row, col, &mut buf, &mut disp);
             // led.toggle().unwrap();
             // led_on = !led_on;

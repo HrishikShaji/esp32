@@ -9,6 +9,7 @@ pub struct Max7219<DIN, CLK, CS> {
     row: u8,
     col: u8,
     current_module: u8,
+    buf: [[u8; 8]; 4],
 }
 
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
@@ -20,6 +21,12 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             row: 1,
             col: 0,
             current_module: 3,
+            buf: [
+                [0u8, 1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 1u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8],
+            ],
         }
     }
 
@@ -32,6 +39,22 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             }
             self.clk.set_high().ok();
             self.clk.set_low().ok();
+        }
+    }
+
+    pub fn show_buf(&mut self) {
+        let buf = self.buf;
+        for row_index in 0..8 {
+            self.cs.set_low().ok();
+
+            for module_index in (0..4).rev() {
+                // Send the row address (MAX7219 rows are addressed 1–8)
+                self.shift_byte((row_index + 1) as u8);
+
+                // Send the row's LED bit pattern
+                self.shift_byte(buf[module_index][row_index]);
+            }
+            self.cs.set_high().ok();
         }
     }
 

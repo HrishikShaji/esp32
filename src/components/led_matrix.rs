@@ -10,6 +10,7 @@ pub struct Max7219<DIN, CLK, CS> {
     col: u8,
     current_module: u8,
     buf: [[u8; 8]; 4],
+    current_dot: (u8, u8),
 }
 
 impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
@@ -22,11 +23,12 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             col: 0,
             current_module: 3,
             buf: [
-                [0u8, 1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 1u8, 0u8, 0u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 0u8, 0u8, 1u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 1u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
             ],
+            current_dot: (0, 1),
         }
     }
 
@@ -58,6 +60,29 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         }
     }
 
+    pub fn update_buf_move_up(&mut self) {
+        let module = self.current_dot.0;
+        let row = self.current_dot.1;
+
+        self.buf[module as usize][row as usize] = 0u8;
+
+        self.current_dot.1 = self.current_dot.1 + 1;
+        self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
+
+        self.show_buf();
+    }
+
+    pub fn update_buf_move_down(&mut self) {
+        let module = self.current_dot.0;
+        let row = self.current_dot.1;
+
+        self.buf[module as usize][row as usize] = 0u8;
+
+        self.current_dot.1 = self.current_dot.1 - 1;
+        self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
+
+        self.show_buf();
+    }
     // Write a register with a separate value for each module.
     // The first frame sent travels to the farthest module, so send in reverse.
     fn write_each(&mut self, reg: u8, data: [u8; NUM]) {

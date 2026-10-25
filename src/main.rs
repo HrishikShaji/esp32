@@ -153,15 +153,17 @@ fn main() {
             // current_bit = current_bit + 1;
             // let bit_mask = 1u8 << current_bit;
             // disp.move_down();
-            disp.show_buf();
-
+            // disp.show_buf();
+            disp.update_buf_move_down();
             // update_row(&mut row, col, &mut buf, &mut disp);
             // led.toggle().unwrap();
             // led_on = !led_on;
         }
         joystick_button_pressed = joystick_pressed;
 
-        on_button_click(&button_up, &mut button_up_pressed, || disp.move_up());
+        on_button_click(&button_up, &mut button_up_pressed, || {
+            disp.update_buf_move_up()
+        });
         on_button_click(&button_left, &mut button_left_pressed, || disp.move_left());
         on_button_click(&button_right, &mut button_right_pressed, || {
             disp.move_right()

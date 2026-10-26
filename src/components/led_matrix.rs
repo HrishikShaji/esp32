@@ -66,13 +66,14 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
         let bit = self.buf[module as usize][row as usize];
-        println!("before update current dot:{:?}", self.current_dot);
-        println!("bit value:{:?}", bit);
+        println!("UP -> before update current dot:{:?}", self.current_dot);
+        println!("UP -> bit value:{:?}", bit);
         self.buf[module as usize][row as usize] = 0u8;
 
         self.current_dot.1 = self.current_dot.1 + 1;
-        println!("before update current dot:{:?}", self.current_dot);
+        println!("UP -> before update current dot:{:?}", self.current_dot);
         self.buf[module as usize][self.current_dot.1 as usize] = bit;
+        println!("UP -> new buf:{:?}", self.buf);
 
         self.show_buf();
     }
@@ -94,10 +95,13 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
 
+        println!("RIGHT -> before current dot:{:?}", self.current_dot);
         let new_bit = self.buf[module as usize][row as usize] << 1;
-        self.current_dot.1 = new_bit;
+        println!("UP -> new bit value:{:?}", new_bit);
         self.buf[module as usize][row as usize] = new_bit;
 
+        println!("RIGHT -> after current dot:{:?}", self.current_dot);
+        println!("RIGHT -> new buf:{:?}", self.buf);
         // self.current_dot.1 = self.current_dot.1 - 1;
         // self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
 
@@ -109,7 +113,6 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         let row = self.current_dot.1;
 
         let new_bit = self.buf[module as usize][row as usize] >> 1;
-        self.current_dot.1 = new_bit;
         self.buf[module as usize][row as usize] = new_bit;
 
         // self.current_dot.1 = self.current_dot.1 - 1;

@@ -164,7 +164,9 @@ fn main() {
         on_button_click(&button_up, &mut button_up_pressed, || {
             disp.update_buf_move_up()
         });
-        on_button_click(&button_left, &mut button_left_pressed, || disp.move_left());
+        on_button_click(&button_left, &mut button_left_pressed, || {
+            disp.update_buf_move_left()
+        });
         on_button_click(&button_right, &mut button_right_pressed, || {
             disp.update_buf_move_right()
         });

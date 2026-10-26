@@ -23,12 +23,12 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             col: 0,
             current_module: 3,
             buf: [
-                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
-                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
                 [1u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
+                [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8],
             ],
-            current_dot: (3, 0),
+            current_dot: (0, 0),
         }
     }
 
@@ -60,14 +60,18 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         }
     }
 
+    //second implementation
+
     pub fn update_buf_move_up(&mut self) {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
         let bit = self.buf[module as usize][row as usize];
-
+        println!("before update current dot:{:?}", self.current_dot);
+        println!("bit value:{:?}", bit);
         self.buf[module as usize][row as usize] = 0u8;
 
         self.current_dot.1 = self.current_dot.1 + 1;
+        println!("before update current dot:{:?}", self.current_dot);
         self.buf[module as usize][self.current_dot.1 as usize] = bit;
 
         self.show_buf();
@@ -136,7 +140,8 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         self.write_all(0x0C, 0x01); // normal operation (wake up)
         self.clear();
         let bit = 1u8 << self.col;
-        self.show_one(self.row, bit);
+        // self.show_one(self.row, bit);
+        self.show_buf();
     }
 
     fn clear(&mut self) {
@@ -173,6 +178,8 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
             self.show_one(row, 0b00000001);
         }
     }
+
+    //first implementation
 
     pub fn move_up(&mut self) {
         println!("UP button clicked");

@@ -92,11 +92,24 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     }
 
     pub fn update_buf_move_right(&mut self) {
-        let module = self.current_dot.0;
+        let mut module = self.current_dot.0;
         let row = self.current_dot.1;
+        let bit = self.buf[module as usize][row as usize];
+        let mut new_bit = self.buf[module as usize][row as usize] << 1;
+
+        println!("RIGHT -> bit first:{:?}", bit);
+        if bit == 128 {
+            if self.current_dot.0 == 3 {
+                println!("x axis end reached");
+                return;
+            } else {
+                module += 1;
+                new_bit = 1u8;
+                self.current_dot.0 = module;
+            }
+        }
 
         println!("RIGHT -> before current dot:{:?}", self.current_dot);
-        let new_bit = self.buf[module as usize][row as usize] << 1;
         println!("UP -> new bit value:{:?}", new_bit);
         self.buf[module as usize][row as usize] = new_bit;
 

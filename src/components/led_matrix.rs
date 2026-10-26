@@ -66,6 +66,12 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
         let bit = self.buf[module as usize][row as usize];
+
+        if row == 7 {
+            println!("Top end reached");
+            return;
+        }
+
         println!("UP -> before update current dot:{:?}", self.current_dot);
         println!("UP -> bit value:{:?}", bit);
         self.buf[module as usize][row as usize] = 0u8;
@@ -82,6 +88,11 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         let module = self.current_dot.0;
         let row = self.current_dot.1;
         let bit = self.buf[module as usize][row as usize];
+
+        if row == 0 {
+            println!("Bottom end reached");
+            return;
+        }
 
         self.buf[module as usize][row as usize] = 0u8;
 
@@ -100,17 +111,20 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
         println!("RIGHT -> bit first:{:?}", bit);
         if bit == 128 {
             if self.current_dot.0 == 3 {
-                println!("x axis end reached");
+                println!("x axis right end reached");
                 return;
             } else {
                 module += 1;
                 new_bit = 1u8;
+                //reset prev module
+                let prev_module = module - 1;
+                self.buf[prev_module as usize][row as usize] = 0u8;
                 self.current_dot.0 = module;
             }
         }
 
         println!("RIGHT -> before current dot:{:?}", self.current_dot);
-        println!("UP -> new bit value:{:?}", new_bit);
+        println!("RIGHT -> new bit value:{:?}", new_bit);
         self.buf[module as usize][row as usize] = new_bit;
 
         println!("RIGHT -> after current dot:{:?}", self.current_dot);
@@ -122,12 +136,31 @@ impl<DIN: OutputPin, CLK: OutputPin, CS: OutputPin> Max7219<DIN, CLK, CS> {
     }
 
     pub fn update_buf_move_left(&mut self) {
-        let module = self.current_dot.0;
+        let mut module = self.current_dot.0;
         let row = self.current_dot.1;
+        let bit = self.buf[module as usize][row as usize];
+        let mut new_bit = self.buf[module as usize][row as usize] >> 1;
 
-        let new_bit = self.buf[module as usize][row as usize] >> 1;
+        println!("LEFT -> bit first:{:?}", bit);
+        if bit == 1 {
+            if self.current_dot.0 == 0 {
+                println!("x axis left end reached");
+                return;
+            } else {
+                module -= 1;
+                new_bit = 1u8 << 7;
+                //reset prev module
+                let prev_module = module + 1;
+                self.buf[prev_module as usize][row as usize] = 0u8;
+                self.current_dot.0 = module;
+            }
+        }
+        println!("RIGHT -> before current dot:{:?}", self.current_dot);
+        println!("RIGHT -> new bit value:{:?}", new_bit);
         self.buf[module as usize][row as usize] = new_bit;
 
+        println!("RIGHT -> after current dot:{:?}", self.current_dot);
+        println!("RIGHT -> new buf:{:?}", self.buf);
         // self.current_dot.1 = self.current_dot.1 - 1;
         // self.buf[module as usize][self.current_dot.1 as usize] = 1u8;
 

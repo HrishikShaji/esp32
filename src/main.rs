@@ -4,6 +4,9 @@ mod servers;
 
 use crate::components::led_matrix::{Max7219, NUM};
 use crate::components::oled::{initiate_display, render_text};
+use esp_idf_hal::adc::attenuation::DB_12;
+use esp_idf_hal::adc::oneshot::config::AdcChannelConfig;
+use esp_idf_hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
 use esp_idf_hal::delay::FreeRtos;
 use esp_idf_hal::gpio::{Input, Output, PinDriver, Pull};
 use esp_idf_hal::peripherals::Peripherals;
@@ -31,29 +34,36 @@ fn main() {
     let i2c_driver = peripherals.i2c0;
 
     let joystick_button = PinDriver::input(peripherals.pins.gpio19, Pull::Up).unwrap();
-    // let _display = init_display(sda, scl, i2c_driver);
-    // let _display = display_text(sda, scl, i2c_driver);
+
+    // Initialize the joystick's analog inputs.
+    // GPIO34 = X axis, GPIO35 = Y axis.
+    let adc = AdcDriver::new(peripherals.adc1).unwrap();
+
+    let adc_config = AdcChannelConfig {
+        attenuation: DB_12,
+        ..Default::default()
+    };
+
+    let mut joystick_x = AdcChannelDriver::new(&adc, peripherals.pins.gpio34, &adc_config).unwrap();
+    let mut joystick_y = AdcChannelDriver::new(&adc, peripherals.pins.gpio35, &adc_config).unwrap();
+
     let mut display = initiate_display(sda, scl, i2c_driver);
-    // render_text(&mut display,"hello");
+    // render_text(&mut display, "hello");
 
     println!("OLED should now be illuminated.");
 
-    //after display
-    // log::info!("Hello,final sample world!");
-    // let  led_pin = Arc::new(Mutex::new(PinDriver::output(peripherals.pins.gpio5).unwrap()));
+    // let led_pin = Arc::new(Mutex::new(PinDriver::output(peripherals.pins.gpio5).unwrap()));
     //
     // let servo1_timer = peripherals.ledc.timer1;
     // let servo1_driver = LedcTimerDriver::new(servo1_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
-    //
     // let servo1 = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel3, servo1_driver, peripherals.pins.gpio2).unwrap()));
     //
     // let servo2_timer = peripherals.ledc.timer2;
     // let servo2_driver = LedcTimerDriver::new(servo2_timer, &TimerConfig::new().frequency(Hertz(50)).resolution(esp_idf_hal::ledc::Resolution::Bits14)).unwrap();
-    //
     // let servo2 = Arc::new(Mutex::new(LedcDriver::new(peripherals.ledc.channel4, servo2_driver, peripherals.pins.gpio18).unwrap()));
     //
     // let _wifi = simple_connect_wifi(peripherals.modem);
-    // let _server = init_server(led_pin,servo1,servo2);
+    // let _server = init_server(led_pin, servo1, servo2);
 
     let din = PinDriver::output(peripherals.pins.gpio23).unwrap();
     let clk = PinDriver::output(peripherals.pins.gpio18).unwrap();
@@ -62,141 +72,104 @@ fn main() {
     let mut disp = Max7219::new(din, clk, cs);
     disp.init();
 
-    // let mut led = PinDriver::output(peripherals.pins.gpio2).unwrap();
-
-    // let button_up = PinDriver::input(peripherals.pins.gpio4, Pull::Up).unwrap();
-    // let mut button_up_pressed = false;
-    //
-    // let button_left = PinDriver::input(peripherals.pins.gpio15, Pull::Up).unwrap();
-    // let mut button_left_pressed = false;
-    //
-    // let button_right = PinDriver::input(peripherals.pins.gpio16, Pull::Up).unwrap();
-    // let mut button_right_pressed = false;
-
-    fn on_button_click(
-        button_pin: &PinDriver<'static, Input>,
-        button_pressed: &mut bool,
-        mut action: impl FnMut(),
-    ) {
-        let pressed = button_pin.is_low();
-
-        // if pressed != *button_pressed {
-        //     println!(
-        //         "{:?}: {}",
-        //         match button_id {
-        //             ButtonID::Up => "UP",
-        //             ButtonID::Down => "DOWN",
-        //             ButtonID::Left => "LEFT",
-        //             ButtonID::Right => "RIGHT",
-        //         },
-        //         if pressed { "PRESSED" } else { "RELEASED" }
-        //     );
-        // }
-
-        if pressed && !*button_pressed {
-            action();
-            // match button_id {
-            //     ButtonID::Up => move_up(),
-            //     ButtonID::Down => move_down(),
-            //     ButtonID::Left => move_left(),
-            //     ButtonID::Right => move_right(),
-            // }
-        }
-
-        *button_pressed = pressed;
-    }
-
-    // led.set_low().unwrap();
-
     let mut joystick_button_pressed = false;
 
-    // Demo: a vertical bar sweeping across all 32 columns
-    let mut buf = [[0u8; 8]; NUM];
-    let mut col = 0;
-    let mut row = 0;
-    let mut last_step = Instant::now();
-    const STEP: Duration = Duration::from_millis(60);
-    let mut led_on = false;
-    let mut last_drawn: Option<bool> = None; // before the loop
+    // ---------------------------------------------------------------
+    // Joystick calibration
+    // Keep the stick untouched (centered) while this runs at startup.
+    // ---------------------------------------------------------------
+    const SAMPLES: u32 = 64;
+    let mut sum_x: u32 = 0;
+    let mut sum_y: u32 = 0;
+    for _ in 0..SAMPLES {
+        sum_x += adc.read(&mut joystick_x).unwrap() as u32;
+        sum_y += adc.read(&mut joystick_y).unwrap() as u32;
+        FreeRtos::delay_ms(5);
+    }
+    let center_x = (sum_x / SAMPLES) as i32;
+    let center_y = (sum_y / SAMPLES) as i32;
+    println!("Calibrated center: x={} y={}", center_x, center_y);
 
-    let mut current_row = 0;
-    let mut current_bit = 0;
+    // How far from the center the stick must move to count as a direction.
+    // Tune after checking the raw values (try 400..800).
+    const THRESHOLD: i32 = 500;
+    const MOVE_INTERVAL: Duration = Duration::from_millis(180);
+
+    // Set to false once the joystick works, to stop the serial spam.
+    const DEBUG_RAW: bool = true;
+    let mut last_debug = Instant::now();
+
+    let mut last_move = Instant::now();
+
     loop {
-        // Animation: advance one column every 60 ms, without blocking
-        // if last_step.elapsed() >= STEP {
-        //     last_step = Instant::now();
-        //
-        //     buf = [[0u8; 8]; NUM];
-        //     let (m, bit) = (NUM - 1 - col / 8, 7 - (col % 8));
-        //     for row in 0..8 {
-        //         buf[m][row] = 1 << bit;
-        //     }
-        //     disp.show(&buf);
-        //
-        //     col = (col + 1) % (NUM * 8);
-        // }
+        // Read the joystick's analog axes.
+        let x = adc.read(&mut joystick_x).unwrap() as i32;
+        let y = adc.read(&mut joystick_y).unwrap() as i32;
 
-        // let bit = 5;
-        //        buf[2][1] = 1 << bit;
-        //        disp.show(&buf);
+        // Print raw values twice a second to help with tuning.
+        if DEBUG_RAW && last_debug.elapsed() >= Duration::from_millis(500) {
+            last_debug = Instant::now();
+            println!("x={} y={}", x, y);
+        }
 
-        // if joystick_button.is_low() {
-        //     println!("Joystick button pressed!");
-        // } else {
-        //     println!("Joystick button released");
-        // }
+        let dx = x - center_x;
+        let dy = y - center_y;
 
+        // Pick the axis with the larger deviation so the two axes don't mask each other.
+        // If your directions come out swapped or inverted, swap Left/Right or Up/Down below.
+        let direction = if dx.abs() < THRESHOLD && dy.abs() < THRESHOLD {
+            None
+        } else if dx.abs() >= dy.abs() {
+            if dx < 0 {
+                Some(ButtonID::Left)
+            } else {
+                Some(ButtonID::Right)
+            }
+        } else if dy < 0 {
+            Some(ButtonID::Up)
+        } else {
+            Some(ButtonID::Down)
+        };
+
+        // Move once per interval while the joystick is held.
+        if let Some(direction) = direction {
+            if last_move.elapsed() >= MOVE_INTERVAL {
+                last_move = Instant::now();
+
+                match direction {
+                    ButtonID::Up => {
+                        println!("Joystick UP");
+                        disp.update_buf_move_up();
+                    }
+                    ButtonID::Down => {
+                        println!("Joystick DOWN");
+                        disp.update_buf_move_down();
+                    }
+                    ButtonID::Left => {
+                        println!("Joystick LEFT");
+                        disp.update_buf_move_left();
+                    }
+                    ButtonID::Right => {
+                        println!("Joystick RIGHT");
+                        disp.update_buf_move_right();
+                    }
+                }
+            }
+        } else {
+            // Allow an immediate movement when the joystick is pushed again.
+            last_move = Instant::now()
+                .checked_sub(MOVE_INTERVAL)
+                .unwrap_or_else(Instant::now);
+        }
+
+        // Joystick click (act only on the press edge).
         let joystick_pressed = joystick_button.is_low();
         if joystick_pressed && !joystick_button_pressed {
             println!("joystick clicked");
-
-            // current_bit = current_bit + 1;
-            // let bit_mask = 1u8 << current_bit;
-            // disp.move_down();
-            // disp.show_buf();
             disp.update_buf_move_down();
-            // update_row(&mut row, col, &mut buf, &mut disp);
-            // led.toggle().unwrap();
-            // led_on = !led_on;
         }
         joystick_button_pressed = joystick_pressed;
 
-        // on_button_click(&button_up, &mut button_up_pressed, || {
-        //     disp.update_buf_move_up()
-        // });
-        // on_button_click(&button_left, &mut button_left_pressed, || {
-        //     disp.update_buf_move_left()
-        // });
-        // on_button_click(&button_right, &mut button_right_pressed, || {
-        //     disp.update_buf_move_right()
-        // });
-
-        // let pressed = button_up.is_low();
-
-        // Act only on the press edge
-        // if pressed && !button_up_pressed {
-        //     println!("button clicked");
-        //     // update_col(&mut col,row,&mut buf,&mut disp);
-        //     current_row = current_row + 1;
-        //     disp.move_left(current_row);
-        //     // disp.move_left(3);
-        //     // disp.move_left(4);
-        //     // disp.move_left(5);
-        //     led.toggle().unwrap();
-        //     led_on = !led_on;
-        // }
-        // button_up_pressed = pressed;
-
-        // Redraw only when the LED state changes
-        if last_drawn != Some(led_on) {
-            // render_text(&mut display, if button_up_pressed { "on" } else { "off" });
-            last_drawn = Some(led_on);
-        }
         FreeRtos::delay_ms(1);
     }
-    // loop {
-    //     std::thread::sleep(Duration::from_secs(1));
-    // }
-
-    // Ok(())
 }

@@ -32,7 +32,12 @@ pub fn initiate_display(
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
 
-    display.init().unwrap();
+    match display.init() {
+        Ok(()) => println!("OLED initialized successfully"),
+        Err(err) => {
+            println!("OLED initialization failed: {:?}", err);
+        }
+    }
 
     display
 }
